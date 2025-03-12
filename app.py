@@ -1,10 +1,17 @@
 import os
 import time
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from pydantic import BaseModel, Field
 from typing import Dict, Optional
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 from services.gitolite_service import GitoliteService, get_gitolite_service
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -12,6 +19,13 @@ app = FastAPI(
     description="API for managing Gitolite repositories and SSH keys",
     version="0.1.0",
 )
+
+# Configure rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Rate limit configuration from environment variables
+RATE_LIMIT = os.environ.get("RATE_LIMIT", "10/minute")
 
 # Data models
 class GitoliteRequest(BaseModel):
@@ -24,8 +38,10 @@ class GitoliteResponse(BaseModel):
     message: str = Field(..., description="Status message")
 
 @app.put("/gitolite/repo", response_model=GitoliteResponse)
+@limiter.limit(RATE_LIMIT)
 async def create_gitolite_repo(
     request: GitoliteRequest,
+    request_obj: Request,
     gitolite_service: GitoliteService = Depends(get_gitolite_service)
 ):
     """

@@ -76,11 +76,14 @@ The server will start at http://127.0.0.1:8000
 
 ## API Endpoints
 
-- `POST /items/`: Create a new item
-- `GET /items/{item_id}`: Get an item by ID
-- `GET /items/`: Get all items
-- `PUT /items/{item_id}`: Update an item
-- `DELETE /items/{item_id}`: Delete an item
+- `PUT /gitolite/repo`: Create a new Gitolite repository with SSH key access
+
+## Rate Limiting
+
+The API implements rate limiting to prevent abuse. By default, clients are limited to:
+- 10 requests per minute
+
+Rate limiting is configured using the `RATE_LIMIT` environment variable.
 
 ## Example Usage
 
