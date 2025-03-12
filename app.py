@@ -1,70 +1,51 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Dict, Optional, List
+import os
+import time
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, Field
+from typing import Dict, Optional
+
+from services.gitolite_service import GitoliteService, get_gitolite_service
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Sample API",
-    description="A sample API with POST and PUT endpoints",
+    title="Gitolite API",
+    description="API for managing Gitolite repositories and SSH keys",
     version="0.1.0",
 )
 
 # Data models
-class Item(BaseModel):
-    name: str
-    description: Optional[str] = None
-    price: float
-    tags: List[str] = []
+class GitoliteRequest(BaseModel):
+    ssh_pubkey: str = Field(..., description="SSH public key content")
+    unit_name: str = Field(..., description="Learning unit name")
+    username: str = Field(..., description="Username for repository access")
 
-# In-memory database
-items_db: Dict[int, Item] = {}
-next_id = 1
+class GitoliteResponse(BaseModel):
+    repo_url: str = Field(..., description="URL of the created repository")
+    message: str = Field(..., description="Status message")
 
-@app.post("/items/", response_model=Dict[str, int], status_code=201)
-async def create_item(item: Item):
+@app.put("/gitolite/repo", response_model=GitoliteResponse)
+async def create_gitolite_repo(
+    request: GitoliteRequest,
+    gitolite_service: GitoliteService = Depends(get_gitolite_service)
+):
     """
-    Create a new item with the provided details.
+    Create a new Gitolite repository with access for the provided SSH key.
     
-    Returns the ID of the newly created item.
+    - Adds the SSH public key to the Gitolite keydir
+    - Creates a new repository with RW+ access for the user
+    - Returns the Git remote URL for the new repository
     """
-    global next_id
-    item_id = next_id
-    next_id += 1
-    items_db[item_id] = item
-    return {"id": item_id}
-
-@app.get("/items/{item_id}", response_model=Item)
-async def read_item(item_id: int):
-    """
-    Retrieve an item by its ID.
-    """
-    if item_id not in items_db:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return items_db[item_id]
-
-@app.get("/items/", response_model=Dict[int, Item])
-async def read_all_items():
-    """
-    Retrieve all items.
-    """
-    return items_db
-
-@app.put("/items/{item_id}", response_model=Item)
-async def update_item(item_id: int, item: Item):
-    """
-    Update an existing item with the provided details.
-    """
-    if item_id not in items_db:
-        raise HTTPException(status_code=404, detail="Item not found")
-    items_db[item_id] = item
-    return item
-
-@app.delete("/items/{item_id}", response_model=Dict[str, str])
-async def delete_item(item_id: int):
-    """
-    Delete an item by its ID.
-    """
-    if item_id not in items_db:
-        raise HTTPException(status_code=404, detail="Item not found")
-    del items_db[item_id]
-    return {"message": f"Item {item_id} deleted successfully"}
+    try:
+        repo_url = gitolite_service.create_repo_with_key(
+            request.ssh_pubkey,
+            request.unit_name,
+            request.username
+        )
+        return GitoliteResponse(
+            repo_url=repo_url,
+            message="Repository created successfully"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create repository: {str(e)}")

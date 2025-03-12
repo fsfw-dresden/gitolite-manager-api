@@ -1,6 +1,11 @@
+import os
 import uvicorn
 from fastapi.responses import RedirectResponse
+from dotenv import load_dotenv
 from app import app
+
+# Load environment variables from .env file
+load_dotenv()
 
 @app.get("/", include_in_schema=False)
 async def root():
