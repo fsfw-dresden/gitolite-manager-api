@@ -2,7 +2,40 @@
 
 This is a lightweight Python API application built with FastAPI and uvicorn. It provides example POST and PUT endpoints with Swagger UI for testing.
 
-## Setup
+## NixOS Setup
+
+This project uses Nix Flakes for dependency management and development environment setup.
+
+### Development Environment
+
+Enter the development shell:
+
+```bash
+nix develop
+```
+
+Once in the development shell, start the server:
+
+```bash
+uvicorn app:app --reload
+```
+
+### Running the Application
+
+You can run the application directly without entering the development shell:
+
+```bash
+nix run
+```
+
+Or build and run the package:
+
+```bash
+nix build
+./result/bin/start-api-server
+```
+
+## Alternative Setup (Non-NixOS)
 
 ### 1. Create a virtual environment
 
@@ -28,9 +61,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Running the Server
-
-Start the server with uvicorn:
+### 4. Start the server
 
 ```bash
 uvicorn app:app --reload
