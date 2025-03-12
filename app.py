@@ -40,8 +40,8 @@ class GitoliteResponse(BaseModel):
 @app.put("/gitolite/repo", response_model=GitoliteResponse)
 @limiter.limit(RATE_LIMIT)
 async def create_gitolite_repo(
-    request: GitoliteRequest,
-    request_obj: Request,
+    request: Request,
+    gitolite_data: GitoliteRequest,
     gitolite_service: GitoliteService = Depends(get_gitolite_service)
 ):
     """
@@ -53,9 +53,9 @@ async def create_gitolite_repo(
     """
     try:
         repo_url = gitolite_service.create_repo_with_key(
-            request.ssh_pubkey,
-            request.unit_name,
-            request.username
+            gitolite_data.ssh_pubkey,
+            gitolite_data.unit_name,
+            gitolite_data.username
         )
         return GitoliteResponse(
             repo_url=repo_url,
