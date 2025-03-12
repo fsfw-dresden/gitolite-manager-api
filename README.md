@@ -84,30 +84,30 @@ The server will start at http://127.0.0.1:8000
 
 ## Example Usage
 
-### Creating an item (POST)
-
-```bash
-curl -X 'POST' \
-  'http://127.0.0.1:8000/items/' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "name": "Example Item",
-  "description": "This is an example item",
-  "price": 19.99,
-  "tags": ["example", "sample"]
-}'
-```
-
-### Updating an item (PUT)
+### Creating a Gitolite Repository (PUT)
 
 ```bash
 curl -X 'PUT' \
-  'http://127.0.0.1:8000/items/1' \
+  'http://127.0.0.1:8000/gitolite/repo' \
   -H 'Content-Type: application/json' \
   -d '{
-  "name": "Updated Item",
-  "description": "This item has been updated",
-  "price": 29.99,
-  "tags": ["updated", "example"]
+  "ssh_pubkey": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0/Ho+OQP... user@example.com",
+  "unit_name": "Learning Unit 101",
+  "username": "student_name"
 }'
+```
+
+The response will contain the Git repository URL:
+
+```json
+{
+  "repo_url": "gitolite@example.com:learning_unit_101_1678901234",
+  "message": "Repository created successfully"
+}
+```
+
+You can then clone the repository using:
+
+```bash
+git clone gitolite@example.com:learning_unit_101_1678901234
 ```
