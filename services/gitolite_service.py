@@ -107,6 +107,54 @@ class GitoliteService:
         # Add the config to git
         self._run_git_command(["add", str(self.config_file.relative_to(self.gitolite_root))])
     
+    def parse_gitolite_config(self):
+        """
+        Parse the gitolite.conf file to extract repository information.
+        
+        Returns:
+            A dictionary mapping repository names to their access rights
+        """
+        repos = {}
+        current_repo = None
+        
+        with open(self.config_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Check for repo definition
+                repo_match = re.match(r'^repo\s+(.+)$', line)
+                if repo_match:
+                    current_repo = repo_match.group(1)
+                    repos[current_repo] = []
+                    continue
+                
+                # Check for access rights if we're in a repo block
+                if current_repo and line:
+                    # Match access pattern like "RW+ = user1 user2"
+                    access_match = re.match(r'^\s*([RW+-]+)\s*=\s*(.+)$', line)
+                    if access_match:
+                        permission = access_match.group(1)
+                        users = [u.strip() for u in access_match.group(2).split()]
+                        repos[current_repo].append({
+                            "permission": permission,
+                            "users": users
+                        })
+        
+        return repos
+    
+    def list_repositories(self):
+        """
+        List all repositories and their access rights.
+        
+        Returns:
+            Dictionary with repository information
+        """
+        return self.parse_gitolite_config()
+    
     def _run_git_command(self, args: list) -> str:
         """
         Run a git command in the gitolite admin repository.
