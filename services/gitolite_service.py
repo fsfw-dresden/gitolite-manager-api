@@ -43,6 +43,33 @@ class GitoliteService:
         slug = re.sub(r'[^a-z0-9_-]', '', slug)
         return slug
     
+    def _pub_key_exists(self, pubkey: str) -> bool:
+        """
+        Check if a public key already exists.
+        """
+        # Extract key parts from the new key
+        new_key_parts = pubkey.strip().split()
+        if len(new_key_parts) < 2:
+            return False
+        new_key_type = new_key_parts[0]
+        new_key_data = new_key_parts[1]
+
+        # Check all existing keys
+        for key_file in self.keydir.glob('*.pub'):
+            with open(key_file, 'r') as f:
+                existing_key = f.read().strip()
+                # Extract parts from existing key
+                existing_key_parts = existing_key.split()
+                if len(existing_key_parts) < 2:
+                    continue
+                existing_key_type = existing_key_parts[0]
+                existing_key_data = existing_key_parts[1]
+                
+                # Compare key type and data, ignoring any comment/name
+                if existing_key_type == new_key_type and existing_key_data == new_key_data:
+                    return True
+        return False
+    
     def _key_exists(self, username: str) -> bool:
         """
         Check if a key already exists for the given username.
@@ -74,6 +101,9 @@ class GitoliteService:
         slugged_username = self._slugify(username)
         
         if self._key_exists(username):
+            raise ValueError(f"User '{username}' already exists")
+        
+        if self._pub_key_exists(ssh_pubkey):
             raise ValueError(f"SSH key for user '{username}' already exists")
         
         key_path = self.keydir / f"{slugged_username}.pub"
