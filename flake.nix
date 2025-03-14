@@ -1,5 +1,5 @@
 {
-  description = "FastAPI Sample Application";
+  description = "FastAPI to manage Gitolite repositories with open access";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -19,7 +19,7 @@
       in {
         packages = {
           default = pkgs.stdenv.mkDerivation {
-            name = "fastapi-sample-app";
+            name = "gitolite-manager-api";
             src = ./.;
             buildInputs = [ pythonApp ];
             installPhase = ''
@@ -55,7 +55,7 @@
           ];
 
           shellHook = ''
-            echo "Entering FastAPI development environment"
+            echo "Entering Gitolite Manager API development environment"
             echo "Run 'uvicorn app:app --reload' to start the server"
           '';
         };
