@@ -1,0 +1,6 @@
+.aider*
+venv
+.env
+__pycache__
+--Main*
+result
