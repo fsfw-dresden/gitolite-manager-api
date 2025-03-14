@@ -38,7 +38,7 @@ class GitoliteResponse(BaseModel):
     message: str = Field(..., description="Status message")
 
 @app.put("/gitolite/repo", response_model=GitoliteResponse)
-@limiter.limit(RATE_LIMIT)
+@limiter.limit("1/minute")
 async def create_gitolite_repo(
     request: Request,
     gitolite_data: GitoliteRequest,
