@@ -128,7 +128,6 @@ async def create_gitolite_repo(
         raise HTTPException(status_code=500, detail=f"Failed to create repository: {str(e)}")
 
 @app.get("/gitolite/repos", response_model=RepositoriesResponse)
-@limiter.limit(RATE_LIMIT)
 async def list_gitolite_repos(
     request: Request,
     username: str = Depends(verify_credentials),
@@ -163,7 +162,6 @@ async def list_gitolite_repos(
         raise HTTPException(status_code=500, detail=f"Failed to list repositories: {str(e)}")
 
 @app.post("/gitolite/repo/public-access", response_model=PublicAccessResponse)
-@limiter.limit(RATE_LIMIT)
 async def set_repo_public_access(
     request: Request,
     access_data: PublicAccessRequest,
@@ -213,7 +211,6 @@ async def set_repo_public_access(
         )
 
 @app.post("/gitolite/submodule", response_model=SubmoduleResponse)
-@limiter.limit(RATE_LIMIT)
 async def manage_submodule(
     request: Request,
     submodule_data: SubmoduleRequest,
