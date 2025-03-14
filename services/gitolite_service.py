@@ -99,6 +99,10 @@ class GitoliteService:
         with open(self.config_file, 'r') as f:
             config_content = f.read()
         
+        # Validate username contains only allowed characters
+        if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+            raise ValueError(f"Username '{username}' contains invalid characters. Only alphanumeric characters, underscore and dash are allowed.")
+        
         # Append the new repo configuration
         repo_config = f"\nrepo {repo_name}\n    RW+     =   {username}\n"
         
