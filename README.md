@@ -1,6 +1,7 @@
 # Sample API with FastAPI
 
-This is a lightweight Python API application built with FastAPI and uvicorn. It provides example POST and PUT endpoints with Swagger UI for testing.
+This is a lightweight Python API application built with FastAPI and uvicorn. It is meant to allow anonymous users to create Gitolite repositories with open access
+in order to contribute OER materials for the learning portal.
 
 ## NixOS Setup
 
@@ -48,11 +49,6 @@ python -m venv venv
 On Linux/Mac:
 ```bash
 source venv/bin/activate
-```
-
-On Windows:
-```bash
-venv\Scripts\activate
 ```
 
 ### 3. Install dependencies
@@ -114,3 +110,67 @@ You can then clone the repository using:
 ```bash
 git clone gitolite@example.com:learning_unit_101_1678901234
 ```
+
+## Using as a NixOS Module
+
+You can include this service in your NixOS system configuration. Here's an example of how to use it in your `flake.nix`:
+
+```nix
+{
+  description = "NixOS system configuration with Gitolite Manager API";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    gitolite-manager-api = {
+      url = "github:fsfw-dresden/gitolite-manager-api";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, gitolite-manager-api, ... }: {
+    nixosConfigurations.your-hostname = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        gitolite-manager-api.nixosModules.default
+        ({ pkgs, ... }: {
+          # Your other system configuration...
+          
+          # Enable the Gitolite Manager API service
+          services.gitolite-manager-api = {
+            enable = true;
+            port = 8000;
+            host = "0.0.0.0"; # Listen on all interfaces
+            # Optional: Provide environment file with credentials
+            environmentFile = "/path/to/gitolite-api.env";
+            # Optional: Custom user/group
+            user = "gitolite";
+            group = "gitolite";
+          };
+          
+          # You might want to configure a reverse proxy like nginx
+          services.nginx = {
+            enable = true;
+            virtualHosts."gitolite-api.example.com" = {
+              locations."/" = {
+                proxyPass = "http://127.0.0.1:8000";
+              };
+            };
+          };
+          
+          # Open firewall if needed
+          networking.firewall.allowedTCPPorts = [ 80 443 ];
+        })
+      ];
+    };
+  };
+}
+```
+
+The service will be managed by systemd and will start automatically on boot.
+
+
+
+
+
+
+
