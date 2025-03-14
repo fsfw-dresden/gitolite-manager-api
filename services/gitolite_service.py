@@ -3,7 +3,7 @@ import time
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 import logging
 
 # Configure logging
@@ -25,6 +25,7 @@ class GitoliteService:
         self.keydir = self.gitolite_root / "keydir"
         self.config_file = self.gitolite_root / "conf" / "gitolite.conf"
         self.gitolite_url = gitolite_url
+        self.publishing_master_repo = Path(os.environ.get("PUBLISHING_MASTER_REPO", "/path/to/publishing-master"))
     
     def _slugify(self, text: str) -> str:
         """
@@ -316,6 +317,140 @@ class GitoliteService:
         
         # Return the remote URL
         return f"{self.gitolite_url}:{repo_name}"
+    
+    def _run_command(self, cmd: list, cwd: Optional[Path] = None) -> str:
+        """
+        Run a shell command.
+        
+        Args:
+            cmd: Command and arguments
+            cwd: Working directory (defaults to current directory)
+            
+        Returns:
+            Command output
+            
+        Raises:
+            Exception: If the command fails
+        """
+        working_dir = str(cwd) if cwd else None
+        logger.info(f"Running command: {' '.join(cmd)} in {working_dir or 'current directory'}")
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=working_dir
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Command failed: {e.stderr}")
+            raise Exception(f"Command failed: {e.stderr}")
+    
+    def _extract_repo_name(self, repo_url: str) -> str:
+        """
+        Extract repository name from URL.
+        
+        Args:
+            repo_url: Git repository URL
+            
+        Returns:
+            Repository name
+        """
+        # Extract the repo name from the URL
+        # Handle both SSH URLs (git@github.com:user/repo.git) and HTTPS URLs (https://github.com/user/repo.git)
+        if ":" in repo_url:
+            # SSH URL format
+            repo_name = repo_url.split(":")[-1]
+        else:
+            # HTTPS URL format
+            repo_name = repo_url.split("/")[-1]
+        
+        # Remove .git extension if present
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+        
+        return repo_name
+    
+    def manage_submodule(self, repo_url: str, path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Add or update a git repository as a submodule to the master repository.
+        
+        Args:
+            repo_url: Git repository URL
+            path: Path within the master repository (defaults to repo name)
+            
+        Returns:
+            Dictionary with operation status
+            
+        Raises:
+            ValueError: If the repository URL is invalid
+            Exception: If any git operation fails
+        """
+        if not repo_url:
+            raise ValueError("Repository URL cannot be empty")
+        
+        # Ensure the master repository exists
+        if not self.publishing_master_repo.exists():
+            raise ValueError(f"Publishing master repository not found at {self.publishing_master_repo}")
+        
+        # Extract repo name from URL if path is not provided
+        if not path:
+            path = self._extract_repo_name(repo_url)
+        
+        # Check if the submodule already exists
+        submodule_path = self.publishing_master_repo / path
+        is_update = submodule_path.exists()
+        
+        try:
+            if is_update:
+                # Update existing submodule
+                logger.info(f"Updating submodule at {path}")
+                
+                # Navigate to the submodule directory
+                self._run_command(["git", "fetch"], cwd=submodule_path)
+                self._run_command(["git", "checkout", "origin/master"], cwd=submodule_path)
+                
+                # Update the reference in the parent repository
+                self._run_command(["git", "add", path], cwd=self.publishing_master_repo)
+                self._run_command(
+                    ["git", "commit", "-m", f"Update submodule {path}"], 
+                    cwd=self.publishing_master_repo
+                )
+                
+                status = "updated"
+                message = f"Submodule {path} updated successfully"
+            else:
+                # Add new submodule
+                logger.info(f"Adding new submodule from {repo_url} at {path}")
+                
+                # Add the submodule
+                self._run_command(
+                    ["git", "submodule", "add", repo_url, path], 
+                    cwd=self.publishing_master_repo
+                )
+                
+                # Commit the changes
+                self._run_command(
+                    ["git", "commit", "-m", f"Add submodule {path}"], 
+                    cwd=self.publishing_master_repo
+                )
+                
+                status = "added"
+                message = f"Submodule {path} added successfully"
+            
+            # Push the changes
+            self._run_command(["git", "push", "origin", "master"], cwd=self.publishing_master_repo)
+            
+            return {
+                "path": path,
+                "status": status,
+                "message": message
+            }
+        except Exception as e:
+            logger.error(f"Failed to manage submodule: {str(e)}")
+            raise Exception(f"Failed to manage submodule: {str(e)}")
 
 
 def get_gitolite_service() -> GitoliteService:

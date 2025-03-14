@@ -63,6 +63,16 @@ class PublicAccessResponse(BaseModel):
     public_access: bool = Field(..., description="Current public access status")
     message: str = Field(..., description="Status message")
 
+class SubmoduleRequest(BaseModel):
+    repo_url: str = Field(..., description="Git repository URL to add as submodule")
+    path: Optional[str] = Field(None, description="Path within the master repository (defaults to repo name)")
+
+class SubmoduleResponse(BaseModel):
+    repo_url: str = Field(..., description="Git repository URL of the submodule")
+    path: str = Field(..., description="Path of the submodule within the master repository")
+    status: str = Field(..., description="Status of the operation (added/updated)")
+    message: str = Field(..., description="Status message")
+
 def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     """
     Verify HTTP Basic Auth credentials against environment variables.
@@ -200,4 +210,47 @@ async def set_repo_public_access(
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to update public access: {str(e)}"
+        )
+
+@app.post("/gitolite/submodule", response_model=SubmoduleResponse)
+@limiter.limit(RATE_LIMIT)
+async def manage_submodule(
+    request: Request,
+    submodule_data: SubmoduleRequest,
+    username: str = Depends(verify_credentials),
+    gitolite_service: GitoliteService = Depends(get_gitolite_service)
+):
+    """
+    Add or update a git repository as a submodule to the master repository.
+    
+    This endpoint is secured with HTTP Basic Authentication.
+    
+    - If the submodule doesn't exist, it will be added
+    - If the submodule already exists, it will be updated to the latest version
+    
+    Args:
+        submodule_data: Repository URL and optional path
+        
+    Returns:
+        Status of the submodule operation
+    """
+    try:
+        repo_url = submodule_data.repo_url
+        path = submodule_data.path
+        
+        # Add or update the submodule
+        result = gitolite_service.manage_submodule(repo_url, path)
+        
+        return SubmoduleResponse(
+            repo_url=repo_url,
+            path=result["path"],
+            status=result["status"],
+            message=result["message"]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to manage submodule: {str(e)}"
         )
