@@ -1,4 +1,4 @@
-# Sample API with FastAPI
+# Gitolight Management API with FastAPI
 
 This is a lightweight Python API application built with FastAPI and uvicorn. It is meant to allow anonymous users to create Gitolite repositories with open access
 in order to contribute OER materials for the learning portal.
