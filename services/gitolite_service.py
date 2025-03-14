@@ -146,6 +146,27 @@ class GitoliteService:
         
         return repos
     
+    def has_public_access(self, repo_name):
+        """
+        Check if a repository has public read access (@all).
+        
+        Args:
+            repo_name: Name of the repository
+            
+        Returns:
+            True if the repository has public read access, False otherwise
+        """
+        repos = self.parse_gitolite_config()
+        
+        if repo_name not in repos:
+            return False
+        
+        for access in repos[repo_name]:
+            if access["permission"] == "R" and "@all" in access["users"]:
+                return True
+        
+        return False
+    
     def list_repositories(self):
         """
         List all repositories and their access rights.
@@ -154,6 +175,85 @@ class GitoliteService:
             Dictionary with repository information
         """
         return self.parse_gitolite_config()
+    
+    def set_public_access(self, repo_name, enable):
+        """
+        Enable or disable public read access to a repository.
+        
+        Args:
+            repo_name: Name of the repository
+            enable: True to enable public access, False to disable
+            
+        Returns:
+            Current public access status after the operation
+            
+        Raises:
+            ValueError: If the repository doesn't exist
+        """
+        # Check if repository exists
+        repos = self.parse_gitolite_config()
+        if repo_name not in repos:
+            raise ValueError(f"Repository '{repo_name}' not found")
+        
+        # Check current public access status
+        current_status = self.has_public_access(repo_name)
+        
+        # If status already matches the requested state, no changes needed
+        if current_status == enable:
+            return current_status
+        
+        # Read the current config file
+        with open(self.config_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Process the file to add or remove public access
+        in_target_repo = False
+        public_access_line_index = -1
+        repo_end_index = -1
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Find the repository section
+            if stripped.startswith(f"repo {repo_name}"):
+                in_target_repo = True
+                continue
+            
+            # If we're in the target repo section
+            if in_target_repo:
+                # Check for public access line
+                if stripped == "R     =   @all":
+                    public_access_line_index = i
+                
+                # Check for the end of the repo section (next repo or end of file)
+                if stripped.startswith("repo ") or i == len(lines) - 1:
+                    repo_end_index = i
+                    break
+        
+        # Modify the file based on the requested action
+        if enable and public_access_line_index == -1:
+            # Add public access
+            if repo_end_index != -1:
+                # Insert before the next repo or at the end of the file
+                lines.insert(repo_end_index, "    R     =   @all\n")
+            else:
+                # Append to the end of the file (should not happen with proper parsing)
+                lines.append("    R     =   @all\n")
+        elif not enable and public_access_line_index != -1:
+            # Remove public access
+            lines.pop(public_access_line_index)
+        
+        # Write the modified config back to the file
+        with open(self.config_file, 'w') as f:
+            f.writelines(lines)
+        
+        # Commit and push the changes
+        self._run_git_command(["add", str(self.config_file.relative_to(self.gitolite_root))])
+        self._run_git_command(["commit", "-m", f"{'Enable' if enable else 'Disable'} public access for {repo_name}"])
+        self._run_git_command(["push", "origin", "master"])
+        
+        # Return the new status
+        return enable
     
     def _run_git_command(self, args: list) -> str:
         """

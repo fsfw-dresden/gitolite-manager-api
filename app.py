@@ -54,6 +54,15 @@ class RepositoryInfo(BaseModel):
 class RepositoriesResponse(BaseModel):
     repositories: List[RepositoryInfo] = Field(..., description="List of repositories")
 
+class PublicAccessRequest(BaseModel):
+    repo_name: str = Field(..., description="Name of the repository")
+    enable: bool = Field(..., description="True to enable public access, False to disable")
+
+class PublicAccessResponse(BaseModel):
+    repo_name: str = Field(..., description="Name of the repository")
+    public_access: bool = Field(..., description="Current public access status")
+    message: str = Field(..., description="Status message")
+
 def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     """
     Verify HTTP Basic Auth credentials against environment variables.
@@ -142,3 +151,53 @@ async def list_gitolite_repos(
         return RepositoriesResponse(repositories=repositories)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list repositories: {str(e)}")
+
+@app.post("/gitolite/repo/public-access", response_model=PublicAccessResponse)
+@limiter.limit(RATE_LIMIT)
+async def set_repo_public_access(
+    request: Request,
+    access_data: PublicAccessRequest,
+    username: str = Depends(verify_credentials),
+    gitolite_service: GitoliteService = Depends(get_gitolite_service)
+):
+    """
+    Enable or disable public read access to a repository.
+    
+    This endpoint is secured with HTTP Basic Authentication.
+    
+    - When enabled, adds 'R = @all' to the repository configuration
+    - When disabled, removes 'R = @all' from the repository configuration
+    
+    Args:
+        access_data: Repository name and access flag
+        
+    Returns:
+        Updated public access status
+    """
+    try:
+        repo_name = access_data.repo_name
+        enable = access_data.enable
+        
+        # Check if repository exists
+        repos = gitolite_service.list_repositories()
+        if repo_name not in repos:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Repository '{repo_name}' not found"
+            )
+        
+        # Set public access
+        result = gitolite_service.set_public_access(repo_name, enable)
+        
+        return PublicAccessResponse(
+            repo_name=repo_name,
+            public_access=result,
+            message=f"Public access {'enabled' if result else 'disabled'} for repository '{repo_name}'"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to update public access: {str(e)}"
+        )
