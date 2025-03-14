@@ -410,7 +410,7 @@ class GitoliteService:
                 
                 # Navigate to the submodule directory
                 self._run_command(["git", "fetch"], cwd=submodule_path)
-                self._run_command(["git", "checkout", "origin/master"], cwd=submodule_path)
+                self._run_command(["git", "pull"], cwd=submodule_path)
                 
                 # Update the reference in the parent repository
                 self._run_command(["git", "add", path], cwd=self.publishing_master_repo)
@@ -441,7 +441,7 @@ class GitoliteService:
                 message = f"Submodule {path} added successfully"
             
             # Push the changes
-            self._run_command(["git", "push", "origin", "master"], cwd=self.publishing_master_repo)
+            self._run_command(["git", "push"], cwd=self.publishing_master_repo)
             
             return {
                 "path": path,
