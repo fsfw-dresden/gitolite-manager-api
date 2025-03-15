@@ -130,6 +130,9 @@ You can include this service in your NixOS system configuration. Here's an examp
   outputs = { self, nixpkgs, gitolite-manager-api, ... }: {
     nixosConfigurations.your-hostname = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
+      specialArgs = {
+        inherit gitolite-manager-api;
+      };
       modules = [
         gitolite-manager-api.nixosModules.default
         ({ pkgs, ... }: {

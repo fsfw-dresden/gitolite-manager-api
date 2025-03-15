@@ -7,7 +7,85 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+    let
+      # Define the NixOS module at the top level
+      nixosModule = { config, lib, pkgs, ... }:
+        with lib;
+        let cfg = config.services.gitolite-manager-api;
+        in {
+          options.services.gitolite-manager-api = {
+            enable = mkEnableOption "Gitolite Manager API service";
+
+            port = mkOption {
+              type = types.port;
+              default = 8000;
+              description = "Port to listen on";
+            };
+
+            host = mkOption {
+              type = types.str;
+              default = "127.0.0.1";
+              description = "Host to bind to";
+            };
+
+            environmentFile = mkOption {
+              type = types.nullOr types.path;
+              default = null;
+              description =
+                "Path to environment file containing API credentials";
+            };
+
+            user = mkOption {
+              type = types.str;
+              default = "gitolite-api";
+              description = "User account under which the service runs";
+            };
+
+            group = mkOption {
+              type = types.str;
+              default = "gitolite-api";
+              description = "Group under which the service runs";
+            };
+          };
+
+          config = mkIf cfg.enable {
+            users.users.${cfg.user} = {
+              isSystemUser = true;
+              group = cfg.group;
+              description = "Gitolite Manager API service user";
+            };
+
+            users.groups.${cfg.group} = { };
+
+            systemd.services.gitolite-manager-api = {
+              description = "Gitolite Manager API Service";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" ];
+
+              serviceConfig = {
+                Type = "simple";
+                User = cfg.user;
+                Group = cfg.group;
+                ExecStart = ''
+                  ${
+                    self.packages.${pkgs.system}.default
+                  }/bin/start-api-server \
+                    --host ${cfg.host} \
+                    --port ${toString cfg.port}
+                '';
+                Restart = "always";
+                EnvironmentFile =
+                  optional (cfg.environmentFile != null) cfg.environmentFile;
+              };
+            };
+          };
+        };
+    in
+    # Merge the per-system outputs with the top-level module
+    {
+      # Top-level NixOS module
+      nixosModules.default = nixosModule;
+    } // flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
         python = pkgs.python311;
@@ -17,78 +95,6 @@
         pythonApp =
           python.withPackages (ps: with ps; [ fastapi uvicorn pydantic ]);
       in {
-        # NixOS module for the Gitolite Manager API service
-        nixosModules.default = { config, lib, pkgs, ... }:
-          with lib;
-          let cfg = config.services.gitolite-manager-api;
-          in {
-            options.services.gitolite-manager-api = {
-              enable = mkEnableOption "Gitolite Manager API service";
-
-              port = mkOption {
-                type = types.port;
-                default = 8000;
-                description = "Port to listen on";
-              };
-
-              host = mkOption {
-                type = types.str;
-                default = "127.0.0.1";
-                description = "Host to bind to";
-              };
-
-              environmentFile = mkOption {
-                type = types.nullOr types.path;
-                default = null;
-                description =
-                  "Path to environment file containing API credentials";
-              };
-
-              user = mkOption {
-                type = types.str;
-                default = "gitolite-api";
-                description = "User account under which the service runs";
-              };
-
-              group = mkOption {
-                type = types.str;
-                default = "gitolite-api";
-                description = "Group under which the service runs";
-              };
-            };
-
-            config = mkIf cfg.enable {
-              users.users.${cfg.user} = {
-                isSystemUser = true;
-                group = cfg.group;
-                description = "Gitolite Manager API service user";
-              };
-
-              users.groups.${cfg.group} = { };
-
-              systemd.services.gitolite-manager-api = {
-                description = "Gitolite Manager API Service";
-                wantedBy = [ "multi-user.target" ];
-                after = [ "network.target" ];
-
-                serviceConfig = {
-                  Type = "simple";
-                  User = cfg.user;
-                  Group = cfg.group;
-                  ExecStart = ''
-                    ${
-                      self.packages.${pkgs.system}.default
-                    }/bin/start-api-server \
-                      --host ${cfg.host} \
-                      --port ${toString cfg.port}
-                  '';
-                  Restart = "always";
-                  EnvironmentFile =
-                    optional (cfg.environmentFile != null) cfg.environmentFile;
-                };
-              };
-            };
-          };
         packages = {
           default = pkgs.stdenv.mkDerivation {
             name = "gitolite-manager-api";
