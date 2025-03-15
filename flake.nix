@@ -93,7 +93,7 @@
 
         # Define the Python application with its dependencies
         pythonApp =
-          python.withPackages (ps: with ps; [ fastapi uvicorn pydantic ]);
+          python.withPackages (ps: with ps; [ fastapi uvicorn pydantic python-dotenv slowapi ]);
       in {
         packages = {
           default = pkgs.stdenv.mkDerivation {
