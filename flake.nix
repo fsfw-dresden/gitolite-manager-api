@@ -90,7 +90,7 @@
           default = pkgs.stdenv.mkDerivation {
             name = "gitolite-manager-api";
             src = ./.;
-            buildInputs = [ pythonApp ];
+            buildInputs = [ pythonApp pkgs.git ];
             installPhase = ''
               mkdir -p $out/bin
               mkdir -p $out/lib
@@ -99,6 +99,7 @@
               cat > $out/bin/start-api-server << EOF
               #!${pkgs.bash}/bin/bash
               cd $out/lib
+              export PATH="${pkgs.git}/bin:\$PATH"
               exec ${pythonApp}/bin/uvicorn app:app "\$@"
               EOF
 
