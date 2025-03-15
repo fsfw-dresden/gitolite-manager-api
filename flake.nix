@@ -35,37 +35,28 @@
                 "Path to environment file containing API credentials";
             };
 
-            user = mkOption {
-              type = types.str;
-              default = "gitolite-api";
-              description = "User account under which the service runs";
+            users = mkOption {
+              type = types.listOf types.str;
+              default = [];
+              description = "User accounts under which the service runs";
             };
 
-            group = mkOption {
-              type = types.str;
-              default = "gitolite-api";
-              description = "Group under which the service runs";
-            };
           };
 
           config = mkIf cfg.enable {
-            users.users.${cfg.user} = {
-              isSystemUser = true;
-              group = cfg.group;
-              description = "Gitolite Manager API service user";
-            };
-
-            users.groups.${cfg.group} = { };
-
-            systemd.services.gitolite-manager-api = {
+            
+            systemd.user.services.gitolite-manager-api = {
               description = "Gitolite Manager API Service";
-              wantedBy = [ "multi-user.target" ];
+              wantedBy = [ "default.target" ];
               after = [ "network.target" ];
+
+              unitConfig = {
+                # Only enable the service for the specified users
+                ConditionUser = concatStringsSep "|" cfg.users;
+              };
 
               serviceConfig = {
                 Type = "simple";
-                User = cfg.user;
-                Group = cfg.group;
                 ExecStart = ''
                   ${
                     self.packages.${pkgs.system}.default
