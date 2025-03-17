@@ -41,6 +41,7 @@ class GitoliteRequest(BaseModel):
 
 class GitoliteResponse(BaseModel):
     repo_url: str = Field(..., description="URL of the created repository")
+    username: str = Field(..., description="Username that was used for repository access")
     message: str = Field(..., description="Status message")
 
 class AccessRight(BaseModel):
@@ -109,17 +110,20 @@ async def create_gitolite_repo(
     Create a new Gitolite repository with access for the provided SSH key.
     
     - Adds the SSH public key to the Gitolite keydir
+    - If the key already exists, uses the existing username
+    - If the username exists but the key is new, generates a unique username
     - Creates a new repository with RW+ access for the user
-    - Returns the Git remote URL for the new repository
+    - Returns the Git remote URL for the new repository and the username that was used
     """
     try:
-        repo_url = gitolite_service.create_repo_with_key(
+        result = gitolite_service.create_repo_with_key(
             gitolite_data.ssh_pubkey,
             gitolite_data.unit_name,
             gitolite_data.username
         )
         return GitoliteResponse(
-            repo_url=repo_url,
+            repo_url=result["remote_url"],
+            username=result["username"],
             message="Repository created successfully"
         )
     except ValueError as e:
