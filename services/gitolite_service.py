@@ -45,14 +45,20 @@ class GitoliteService:
         slug = re.sub(r'[^a-z0-9_-]', '', slug)
         return slug
     
-    def _pub_key_exists(self, pubkey: str) -> bool:
+    def _find_user_by_pubkey(self, pubkey: str) -> Optional[str]:
         """
-        Check if a public key already exists.
+        Check if a public key already exists and return the associated username.
+        
+        Args:
+            pubkey: SSH public key content
+            
+        Returns:
+            Username if the key exists, None otherwise
         """
         # Extract key parts from the new key
         new_key_parts = pubkey.strip().split()
         if len(new_key_parts) < 2:
-            return False
+            return None
         new_key_type = new_key_parts[0]
         new_key_data = new_key_parts[1]
 
@@ -69,8 +75,21 @@ class GitoliteService:
                 
                 # Compare key type and data, ignoring any comment/name
                 if existing_key_type == new_key_type and existing_key_data == new_key_data:
-                    return True
-        return False
+                    # Extract username from filename (remove .pub extension)
+                    return key_file.stem
+        return None
+    
+    def _pub_key_exists(self, pubkey: str) -> bool:
+        """
+        Check if a public key already exists.
+        
+        Args:
+            pubkey: SSH public key content
+            
+        Returns:
+            True if key exists, False otherwise
+        """
+        return self._find_user_by_pubkey(pubkey) is not None
     
     def _key_exists(self, username: str) -> bool:
         """
@@ -86,6 +105,31 @@ class GitoliteService:
         key_path = self.keydir / f"{slugged_username}.pub"
         return key_path.exists()
     
+    def _generate_unique_username(self, base_username: str) -> str:
+        """
+        Generate a unique username by appending random characters if needed.
+        
+        Args:
+            base_username: Base username to start with
+            
+        Returns:
+            Unique username
+        """
+        slugged_username = self._slugify(base_username)
+        
+        # If the username doesn't exist, return it as is
+        if not self._key_exists(slugged_username):
+            return slugged_username
+        
+        # Otherwise, append random characters until we find a unique username
+        while True:
+            # Generate 6 random alphanumeric characters
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+            new_username = f"{slugged_username}_{random_suffix}"
+            
+            if not self._key_exists(new_username):
+                return new_username
+    
     def _add_ssh_key(self, username: str, ssh_pubkey: str) -> str:
         """
         Add an SSH public key to the Gitolite keydir.
@@ -95,18 +139,21 @@ class GitoliteService:
             ssh_pubkey: SSH public key content
             
         Returns:
-            Slugified username
+            Slugified username that was actually used
             
         Raises:
             ValueError: If the key already exists
         """
-        slugged_username = self._slugify(username)
+        # First check if the key already exists
+        existing_user = self._find_user_by_pubkey(ssh_pubkey)
+        if existing_user:
+            return existing_user
         
+        # If username exists, generate a unique one
         if self._key_exists(username):
-            raise ValueError(f"User '{username}' already exists")
-        
-        if self._pub_key_exists(ssh_pubkey):
-            raise ValueError(f"SSH key for user '{username}' already exists")
+            slugged_username = self._generate_unique_username(username)
+        else:
+            slugged_username = self._slugify(username)
         
         key_path = self.keydir / f"{slugged_username}.pub"
         
@@ -320,7 +367,7 @@ class GitoliteService:
             logger.error(f"Git command failed: {e.stderr}")
             raise Exception(f"Git command failed: {e.stderr}")
     
-    def create_repo_with_key(self, ssh_pubkey: str, unit_name: str, username: str) -> str:
+    def create_repo_with_key(self, ssh_pubkey: str, unit_name: str, username: str) -> dict:
         """
         Create a new Gitolite repository with access for the provided SSH key.
         
@@ -330,13 +377,13 @@ class GitoliteService:
             username: Username for repository access
             
         Returns:
-            Git remote URL for the new repository
+            Dictionary with Git remote URL and the username that was used
             
         Raises:
             ValueError: If the key already exists
             Exception: If any git operation fails
         """
-        # Add the SSH key
+        # Add the SSH key - this will handle existing keys and usernames
         slugged_username = self._add_ssh_key(username, ssh_pubkey)
         
         # Create a unique repo name with timestamp
@@ -351,8 +398,11 @@ class GitoliteService:
         self._run_git_command(["commit", "-m", f"Add user {slugged_username} and repo {repo_name}"])
         self._run_git_command(["push", "origin", "master"])
         
-        # Return the remote URL
-        return f"{self.gitolite_url}:{repo_name}"
+        # Return the remote URL and the username that was used
+        return {
+            "remote_url": f"{self.gitolite_url}:{repo_name}",
+            "username": slugged_username
+        }
     
     def _run_command(self, cmd: list, cwd: Optional[Path] = None) -> str:
         """
