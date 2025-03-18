@@ -90,7 +90,7 @@
           default = pkgs.stdenv.mkDerivation {
             name = "gitolite-manager-api";
             src = ./.;
-            buildInputs = [ pythonApp pkgs.git ];
+            buildInputs = [ pythonApp pkgs.git pkgs.openssh ];
             installPhase = ''
               mkdir -p $out/bin
               mkdir -p $out/lib
@@ -99,7 +99,7 @@
               cat > $out/bin/start-api-server << EOF
               #!${pkgs.bash}/bin/bash
               cd $out/lib
-              export PATH="${pkgs.git}/bin:\$PATH"
+              export PATH="${pkgs.git}/bin:${pkgs.openssh}/bin:\$PATH"
               # Ensure git is in PATH and print debug info if needed
               which git || echo "Git not found in PATH: \$PATH"
               # Use absolute path to git to avoid PATH issues
