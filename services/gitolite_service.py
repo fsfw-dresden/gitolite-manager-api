@@ -352,7 +352,9 @@ class GitoliteService:
         Raises:
             Exception: If the command fails
         """
-        cmd = ["git", "-C", str(self.gitolite_root)] + args
+        # Use GIT environment variable if available, otherwise use 'git'
+        git_cmd = os.environ.get("GIT", "git")
+        cmd = [git_cmd, "-C", str(self.gitolite_root)] + args
         logger.info(f"Running git command: {' '.join(cmd)}")
         
         try:

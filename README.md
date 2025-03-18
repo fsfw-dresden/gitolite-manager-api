@@ -142,12 +142,10 @@ You can include this service in your NixOS system configuration. Here's an examp
           services.gitolite-manager-api = {
             enable = true;
             port = 8000;
-            host = "0.0.0.0"; # Listen on all interfaces
             # Optional: Provide environment file with credentials
             environmentFile = "/path/to/gitolite-api.env";
-            # Optional: Custom user/group
-            user = "gitolite";
-            group = "gitolite";
+            # The service will run as user service - under which user should the service run?
+            users = [ "bob" ];
           };
           
           # You might want to configure a reverse proxy like nginx

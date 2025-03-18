@@ -100,6 +100,10 @@
               #!${pkgs.bash}/bin/bash
               cd $out/lib
               export PATH="${pkgs.git}/bin:\$PATH"
+              # Ensure git is in PATH and print debug info if needed
+              which git || echo "Git not found in PATH: \$PATH"
+              # Use absolute path to git to avoid PATH issues
+              export GIT="${pkgs.git}/bin/git"
               exec ${pythonApp}/bin/uvicorn app:app "\$@"
               EOF
 
